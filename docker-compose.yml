@@ -1,0 +1,29 @@
+version: '3'
+
+services:
+  influxdb:
+    image: influxdb:latest
+    container_name: influxdb
+    env_file:
+      - .env
+    ports:
+      - 8086:8086
+    volumes:
+      - ./myInfluxVolume:/var/lib/influxdb2:rw
+
+  app:
+    build:
+      context: .
+      dockerfile: ./apps/influxdb/Dockerfile
+      target: development
+    container_name: app
+    command: npm run start:dev influxdb
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - influxdb
+    ports:
+      - 3000:3000
+    expose:
+      - 3000

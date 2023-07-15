@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "apps/influxdb/src",
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "webpack": true,
+    "tsConfigPath": "apps/influxdb/tsconfig.app.json"
+  },
+  "monorepo": true,
+  "root": "apps/influxdb",
+  "projects": {
+    "influxdb": {
+      "type": "application",
+      "root": "apps/influxdb",
+      "entryFile": "main",
+      "sourceRoot": "apps/influxdb/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/influxdb/tsconfig.app.json"
+      }
+    }
+  }
+}
