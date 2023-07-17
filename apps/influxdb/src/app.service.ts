@@ -29,9 +29,10 @@ export class AppService {
         .floatField('temperature', 23.4)
         .timestamp(new Date());
 
-      this.writeApi.writePoint(point);
+      console.log(point);
+      await this.writeApi.writePoint(point);
 
-      console.log('FINISHED');
+      console.log('FINISHED ');
 
       return 'data stored...';
     } catch (error) {
@@ -45,7 +46,7 @@ export class AppService {
       const query = flux`from(bucket: "${this.configService.get<string>(
         'DOCKER_INFLUXDB_INIT_BUCKET',
       )}") 
-      |> range(start: -1d)
+      |> range(start: -1h)
       |> filter(fn: (r) => r._measurement == "weatherstation")`;
 
       const data = await this.queryApi.collectRows(query);
