@@ -26,10 +26,9 @@ export class AppService {
     try {
       const point = new Point('weatherstation')
         .tag('location', 'San Francisco')
-        .floatField('temperature', 23.4)
+        .floatField('temperature', 43.7)
         .timestamp(new Date());
 
-      console.log(point);
       await this.writeApi.writePoint(point);
 
       console.log('FINISHED ');

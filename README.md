@@ -88,11 +88,17 @@ async writeInInflux() {
 
 .
 
-> - all data in InfluxDB have timestamp column and the collection of field-key and field-value pairs and tag keys and tag values(Tags are optional).
-> - note: it’s generally a good idea to make use of tags because, unlike fields, tags are indexed.
-> - The measurement acts as a container for tags, fields, and the time column. a measurement is conceptually similar to a table
-> - A retention policy describes how long InfluxDB keeps data (DURATION) and how many copies of this data is stored in the cluster (REPLICATION).
-> - a series is a collection of points that share a measurement, tag set, and field key
+# basic concept (important)
+
+- all data in InfluxDB have timestamp column and the collection of field-key and field-value pairs and tag keys and tag values(Tags are optional).
+- note: it’s generally a good idea to make use of tags because, unlike fields, tags are indexed.
+- The measurement acts as a container for tags, fields, and the time column. a measurement is conceptually similar to a table.
+- A retention policy describes how long InfluxDB keeps data (DURATION) and how many copies of this data is stored in the cluster (REPLICATION).
+- a series is a collection of points that share a measurement, tag set, and field key.
+
+- ### Timing is everything
+
+- **In InfluxDB, a timestamp identifies a single point in any given data series. This is like an SQL database table where the primary key is pre-set by the system and is always time.**
 
 # tag or field
 
@@ -109,6 +115,12 @@ Store numeric values as fields (tag values only support string values).
 > **note**: You cannot store more than one point with the same timestamp in a series. If you write a point to a series with a timestamp that matches an existing point, the field set becomes a union of the old and new field set
 
 > note: In InfluxDB you don’t have to define schemas up front.
+
+### series cardinality
+
+The number of unique database, measurement, tag set, and field key combinations in an InfluxDB instance.
+
+\***\*we shloud not use tag with high cardinality.\*\***
 
 ### point
 
@@ -151,13 +163,11 @@ time butterflies honeybees location scientist
 
 **selector**: An InfluxQL function that returns a single point from the range of specified points.
 
-**shard**: A shard contains the actual encoded and compressed data, and is represented by a TSM file on disk.
+**shard**: A shard contains the actual encoded and compressed data, and is represented by a TSM file on disk(like nosql database).
+
+**High Availability and Clustering**: Clustering allows you to scale horizontally by adding more InfluxDB nodes to distribute the data and workload.
 
 .
-
-### Timing is everything
-
-**In InfluxDB, a timestamp identifies a single point in any given data series. This is like an SQL database table where the primary key is pre-set by the system and is always time.**
 
 ### join in influxDB
 
@@ -180,6 +190,10 @@ SELECT \* FROM "foodships" WHERE "planet" = 'Saturn' AND time > '2015-04-16 12:0
 ```
 
 .
+
+## monitoring
+
+for monitoring go to data explorer in localhost:8086 and query to database.
 
 ### InfluxDB is not CRUD
 
