@@ -24,9 +24,12 @@ export class AppService {
 
   async writeInInflux() {
     try {
-      const point = new Point('weatherstation')
-        .tag('location', 'San Francisco')
-        .floatField('temperature', 43.7)
+      const price = Math.random() * 100;
+      const volume = Math.random() * 1000;
+      const point = new Point('forex')
+        .tag('location', 'usd')
+        .floatField('price', price)
+        .floatField('volume', volume)
         .timestamp(new Date());
 
       await this.writeApi.writePoint(point);
@@ -46,7 +49,7 @@ export class AppService {
         'DOCKER_INFLUXDB_INIT_BUCKET',
       )}") 
       |> range(start: -1h)
-      |> filter(fn: (r) => r._measurement == "weatherstation")`;
+      |> filter(fn: (r) => r._measurement == "forex")`;
 
       const data = await this.queryApi.collectRows(query);
 
