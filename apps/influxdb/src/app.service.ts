@@ -24,15 +24,23 @@ export class AppService {
 
   async writeInInflux() {
     try {
-      const price = Math.random() * 100;
-      const volume = Math.random() * 1000;
-      const point = new Point('forex')
-        .tag('location', 'usd')
+      const side = Math.random() * 10;
+      const amount = Math.random() * 100;
+      const price = Math.random() * 10000;
+      const total = amount * price;
+
+      this.writeApi.useDefaultTags({
+        location: 'server',
+        pairs: 'BTCUSD',
+        side: side > 5 ? 'buy' : 'sell',
+      });
+      const point = new Point('trade')
+        .floatField('amount', amount)
         .floatField('price', price)
-        .floatField('volume', volume)
+        .floatField('total', total)
         .timestamp(new Date());
 
-      await this.writeApi.writePoint(point);
+      this.writeApi.writePoint(point);
 
       console.log('FINISHED ');
 
@@ -48,8 +56,9 @@ export class AppService {
       const query = flux`from(bucket: "${this.configService.get<string>(
         'DOCKER_INFLUXDB_INIT_BUCKET',
       )}") 
-      |> range(start: -1h)
-      |> filter(fn: (r) => r._measurement == "forex")`;
+      |> range(start: -1d)
+      |> filter(fn: (r) => r["_measurement"] == "trade" and r["_field"] == "price" and r["side"] == "buy")
+      |> aggregateWindow(every: 1m, fn: max)`;
 
       const data = await this.queryApi.collectRows(query);
 

@@ -46,16 +46,27 @@ code example:
 we write two api for read and write in influxdb.
 
 ```
-async writeInInflux() {
+  async writeInInflux() {
     try {
-      const point = new Point('weatherstation')
-        .tag('location', 'San Francisco')
-        .floatField('temperature', 23.4)
+      const side = Math.random() * 10;
+      const amount = Math.random() * 100;
+      const price = Math.random() * 10000;
+      const total = amount * price;
+
+      this.writeApi.useDefaultTags({
+        location: 'server',
+        pairs: 'BTCUSD',
+        side: side > 5 ? 'buy' : 'sell',
+      });
+      const point = new Point('trade')
+        .floatField('amount', amount)
+        .floatField('price', price)
+        .floatField('total', total)
         .timestamp(new Date());
 
       this.writeApi.writePoint(point);
 
-      console.log('FINISHED');
+      console.log('FINISHED ');
 
       return 'data stored...';
     } catch (error) {
@@ -72,7 +83,8 @@ async writeInInflux() {
         'DOCKER_INFLUXDB_INIT_BUCKET',
       )}")
       |> range(start: -1d)
-      |> filter(fn: (r) => r._measurement == "weatherstation")`;
+      |> filter(fn: (r) => r["_measurement"] == "trade" and r["_field"] == "price" and r["side"] == "buy")
+      |> aggregateWindow(every: 1m, fn: max)`;
 
       const data = await this.queryApi.collectRows(query);
 
@@ -145,7 +157,7 @@ time butterflies honeybees location scientist
 
 **batch**: A collection of data points in InfluxDB line protocol format, separated by newlines (0x0A).
 
-**bucket**: A bucket is a named location where time series data is stored in InfluxDB
+**bucket**: A bucket is a named location where time series data is stored in InfluxDB(like database name).
 
 **continuous query (CQ)**: An InfluxQL query that runs automatically and periodically within a database.
 
@@ -194,6 +206,104 @@ SELECT \* FROM "foodships" WHERE "planet" = 'Saturn' AND time > '2015-04-16 12:0
 ## monitoring
 
 for monitoring go to data explorer in localhost:8086 and query to database.
+
+> we can use grafana for monitoring.
+
+## Query InfluxDB with Flux
+
+**_Pipe-forward operator(like linux):_**
+
+-     |>
+
+**_first we need bucket name:_**
+
+- from(bucket:"telegraf/autogen")
+
+**_Flux requires a time range when querying time series data:_**
+
+-     from(bucket:"telegraf/autogen")
+-     |> range(start: -1h)
+- OR
+-     |> range(start: -1h, stop: -10m)
+
+**_Pass your ranged data into the filter() function to narrow results based on data attributes or columns:_**
+
+-     |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system" and r.cpu == "cpu-total")
+
+**_Use Flux’s yield() function to output the filtered tables as the result of the query:_**
+
+-     |> yield()
+- > note:influx CLI automatically assume a yield() function
+
+**_Window functions in InfluxDB allow you to group data into windows of time and then perform aggregations on those windows:_**
+
+-     |> window(every: 5m)
+
+**_Aggregate windowed data:_**
+
+-     |> mean()
+
+**_Add times to your aggregates:_**(As values are aggregated, the resulting tables do not have a \_time column because the records used for the aggregation all have different timestamps)
+
+-     |> duplicate(column: "_stop", as: "_time")
+
+**_Use the window() function with the inf parameter to gather all points into a single, infinite window:_**
+
+-     |> window(every: inf)
+
+**_use Helper functions instead of code above may (seem like a lot of coding):_**
+
+-     |> aggregateWindow(every: 5m, fn: mean)
+
+**_The group() function is used to specify the columns by which you want to group the data:_**
+
+-     |> group(columns: ["cpu"])
+
+**_we can use sort and limit:_**
+
+-     |> sort(columns: ["_value"])
+-     |> limit(n: 10)
+
+**_create function:_**
+
+-     from(bucket: "db/rp")
+        |> range(start: -10m)
+        |> filter(fn: (r) => r._measurement == "mem" and r._field == "active")
+        |> map(fn: (r) => ({r with _value: r._value / 1073741824}))
+
+**_Use the fill() function to replace null values with:_**
+
+-     |> fill(usePrevious: true)
+
+**_Use the first() or last() functions to return the first or last record in an input table:_**
+
+-     |> first()
+-     OR
+-     |> last()
+
+## data type
+
+**_All Flux data types are constructed from the following basic types:_**
+
+- Boolean
+- Bytes
+- Duration
+- Regular expression
+- String
+- Time
+- Float
+- Integer
+- UIntegers
+- Null
+
+**_Flux composite types are types constructed from basic types. Flux supports the following composite types:_**
+
+- Record
+- Array
+- Dictionary
+- Function
+
+**A dynamic type is a wrapper for data whose type is not known until runtime.**
 
 ### InfluxDB is not CRUD
 
