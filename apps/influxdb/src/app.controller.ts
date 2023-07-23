@@ -14,4 +14,9 @@ export class AppController {
   readFromInflux() {
     return this.appService.readFromInflux();
   }
+
+  @Get('symbol')
+  getSymbol() {
+    return this.appService.getSymbol();
+  }
 }
