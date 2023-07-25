@@ -288,6 +288,14 @@ for monitoring go to data explorer in localhost:8086 and query to database.
         |> range(start: -10m)
         |> filter(fn: (r) => r._measurement == "mem" and r._field == "active")
         |> map(fn: (r) => ({r with _value: r._value / 1073741824}))
+- OR
+-     multiplyByX = (x, tables=<-) => tables
+        |> map(fn: (r) => ({r with _value: r._value * x}))
+
+      from(bucket: "my-bucket")
+        |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+        |> filter(fn: (r) => r["_measurement"] == "trade")
+        |> multiplyByX(x: 0.01)
 
 **_Use the fill() function to replace null values with:_**
 
@@ -298,6 +306,77 @@ for monitoring go to data explorer in localhost:8086 and query to database.
 -     |> first()
 -     OR
 -     |> last()
+
+**Pivot:**
+In InfluxDB, the concept of "pivot" refers to reorganizing data from a columnar format into a row format.
+
+-     from(bucket: "myBucket")
+        |> range(start: -1d)
+        |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+
+in this example, The rowKey parameter specifies which columns should be used as row keys, while the columnKey parameter specifies which columns should be used as column keys.
+
+**join**: requires two streams of data.
+
+-     t1 = sql.from(
+          driverName: "postgres",
+          dataSourceName: "postgresql://${pgUser}:${pgPass}@${pgHost}",
+          query: "SELECT id, name, available FROM exampleTable",
+       )
+
+      t2 = from(bucket: "db/rp")
+          |> range(start: -1h)
+          |> filter(fn: (r) => r._measurement == "example-measurement" and r._field == "example-field")
+
+      join(tables: {t1: t1, t2: t2}, on: ["id"])
+          |> map(fn: (r) => ({r with _value: r._value_t2 / r.available_t1 * 100.0}))
+
+**Calculate percentages with Flux:** Calculating percentages from queried data is a common use case for time series data.
+
+-     from(bucket: "my-bucket")
+          |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+          |> filter(fn: (r) => r["_measurement"] == "trade")
+          |> filter(fn: (r) => r["_field"] == "amount" or r["_field"] == "price")
+          |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+          |> map(fn: (r) => ({r with _value: r.price / r.amount * 100.0}))
+
+**cumulative sum:** Use the cumulativeSum() function to calculate a running total of values.
+
+-     |> aggregateWindow(every: 5m, fn: sum)
+      |> cumulativeSum()
+
+**Histograms:** provide valuable insight into the distribution of your data.
+
+-     from(bucket: "my-bucket")
+          |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+          |> filter(fn: (r) => r["_measurement"] == "trade" and r["_field"] == "price")
+          |> histogram(bins: [8.0, 2000.0, 5000.0, 10000.0,20000.0])
+
+**join:**
+
+-     price = from(bucket: "my-bucket")
+           |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+           |> filter(fn: (r) => r["_measurement"] == "trade" and r["_field"] == "price")
+
+      total = from(bucket: "my-bucket")
+           |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+           |> filter(fn: (r) => r["_measurement"] == "trade" and r["_field"] == "total")
+
+       join(tables: {price, total}, on: ["_time", "_stop", "_start", "location"])
+           |> map(fn: (r) => ({_time: r._time, _value: r._value_price * r._value_total}))
+
+**median:**
+We can use this function to get the median.
+
+-     data
+          |> median()
+
+**movingAverage:**
+For each row in a table, movingAverage() returns the average of the current value and previous values where n is the total number of values used to calculate the average.
+
+-     |> movingAverage(n: 3)
+- OR
+-     |> timedMovingAverage(every:2m,period:4m)
 
 ## data type
 
