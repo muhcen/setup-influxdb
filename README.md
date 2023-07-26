@@ -244,14 +244,37 @@ for monitoring go to data explorer in localhost:8086 and query to database.
 - OR
 -     |> range(start: -1h, stop: -10m)
 
+when we set range between two time influxDB get back data between start and stop.
+
+we can use Date:
+
+-     |> range(start: 2018-11-05T23:30:00Z, stop: 2018-11-06T00:00:00Z)
+  or we can remove stop:
+-     |> range(start: -1y)
+
+## output
+
+of the flux query is number of series cardinality table. for every tag we have number of table. if we have 1 measurement and side tag with two value (sell and buy) and 3 fields, number of table is 1 _ 2 _ 3 = 6 and every table have \_field and \_value fields.
+with this table we can draw the graph like trading view, in the graph we have 6 line because we have 6 table.
+
 **_Pass your ranged data into the filter() function to narrow results based on data attributes or columns:_**
 
--     |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system" and r.cpu == "cpu-total")
+-     |> filter(fn: (r) => r._measurement == "trade" and r._field == "price")
+- OR
+-     |> filter(fn: (r) => r._measurement == "trade" and r._field == "total")
+
+## output
+
+if we use filter we select some table that we need like price or total. and influx return 2 table, because we have side tag and influx return 2 table with buy and sell side if we have 3 side influx return 3 table if we have 4 pair and 2 side influx return 8 table.
 
 **_Use Flux’s yield() function to output the filtered tables as the result of the query:_**
 
 -     |> yield()
 - > note:influx CLI automatically assume a yield() function
+
+or we can use this code for change the name of the result name:
+
+-     |> yield(name: "low")
 
 **_Window functions in InfluxDB allow you to group data into windows of time and then perform aggregations on those windows:_**
 
@@ -269,18 +292,35 @@ for monitoring go to data explorer in localhost:8086 and query to database.
 
 -     |> window(every: inf)
 
+create mean of every 5m in influx:
+
+-     |> window(every: 5m)
+      |> mean()
+      |> duplicate(column: "_stop", as: "_time")
+      |> window(every: inf)
+
+## output
+
+influx return 1 row for every 5 minute because we set interval to generate mean for every 5 minute. if we set 1 hour it is generate 1 row for every 1 hour.
+
 **_use Helper functions instead of code above may (seem like a lot of coding):_**
 
 -     |> aggregateWindow(every: 5m, fn: mean)
 
 **_The group() function is used to specify the columns by which you want to group the data:_**
 
--     |> group(columns: ["cpu"])
+-     |> group(columns: ["side"])
+  if we use side in group table divided into two part one of them is sell another is buy.
+  if side have 4 type table divided into 4 table.
 
 **_we can use sort and limit:_**
 
 -     |> sort(columns: ["_value"])
+
+  with sort we can sort buy value of the field or sort by tag.
+
 -     |> limit(n: 10)
+  use limit for return number of record in influx.
 
 **_create function:_**
 
@@ -297,15 +337,21 @@ for monitoring go to data explorer in localhost:8086 and query to database.
         |> filter(fn: (r) => r["_measurement"] == "trade")
         |> multiplyByX(x: 0.01)
 
+in this two example we change value of the field.
+
 **_Use the fill() function to replace null values with:_**
 
 -     |> fill(usePrevious: true)
+  if value is null influx use Previous value or we can use .value
+-     |> fill(value: 0)
+  with this code if field is null influx fill it with 0.
 
 **_Use the first() or last() functions to return the first or last record in an input table:_**
 
 -     |> first()
--     OR
+  first function return first record between two range (for example use for find open the candle)
 -     |> last()
+  last function return last record between two range (for example use for find close the candle)
 
 **Pivot:**
 In InfluxDB, the concept of "pivot" refers to reorganizing data from a columnar format into a row format.
@@ -315,21 +361,7 @@ In InfluxDB, the concept of "pivot" refers to reorganizing data from a columnar 
         |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
 
 in this example, The rowKey parameter specifies which columns should be used as row keys, while the columnKey parameter specifies which columns should be used as column keys.
-
-**join**: requires two streams of data.
-
--     t1 = sql.from(
-          driverName: "postgres",
-          dataSourceName: "postgresql://${pgUser}:${pgPass}@${pgHost}",
-          query: "SELECT id, name, available FROM exampleTable",
-       )
-
-      t2 = from(bucket: "db/rp")
-          |> range(start: -1h)
-          |> filter(fn: (r) => r._measurement == "example-measurement" and r._field == "example-field")
-
-      join(tables: {t1: t1, t2: t2}, on: ["id"])
-          |> map(fn: (r) => ({r with _value: r._value_t2 / r.available_t1 * 100.0}))
+in this example we convert all table to one table.
 
 **Calculate percentages with Flux:** Calculating percentages from queried data is a common use case for time series data.
 
@@ -340,43 +372,83 @@ in this example, The rowKey parameter specifies which columns should be used as 
           |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
           |> map(fn: (r) => ({r with _value: r.price / r.amount * 100.0}))
 
+if we use pivot we access all field value and with this we can Calculate percentages with map function.
+
 **cumulative sum:** Use the cumulativeSum() function to calculate a running total of values.
 
 -     |> aggregateWindow(every: 5m, fn: sum)
       |> cumulativeSum()
 
+this function add value to the all previous value. we should use aggregateWindow and every property for interval.
+
 **Histograms:** provide valuable insight into the distribution of your data.
 
 -     from(bucket: "my-bucket")
-          |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-          |> filter(fn: (r) => r["_measurement"] == "trade" and r["_field"] == "price")
-          |> histogram(bins: [8.0, 2000.0, 5000.0, 10000.0,20000.0])
+            |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+            |> filter(fn: (r) => r["_measurement"] == "trade" and r["_field"] == "price")
+            |> histogram(bins: [8.0, 2000.0, 5000.0, 10000.0,20000.0])
+  in this example we count number of price between quarter. influx return 5 row for every table.
 
 **join:**
 
 -     price = from(bucket: "my-bucket")
-           |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-           |> filter(fn: (r) => r["_measurement"] == "trade" and r["_field"] == "price")
+             |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+             |> filter(fn: (r) => r["_measurement"] == "trade" and r["_field"] == "price")
 
-      total = from(bucket: "my-bucket")
-           |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-           |> filter(fn: (r) => r["_measurement"] == "trade" and r["_field"] == "total")
+        total = from(bucket: "my-bucket")
+             |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+             |> filter(fn: (r) => r["_measurement"] == "trade" and r["_field"] == "total")
 
-       join(tables: {price, total}, on: ["_time", "_stop", "_start", "location"])
-           |> map(fn: (r) => ({_time: r._time, _value: r._value_price * r._value_total}))
+         join(tables: {price, total}, on: ["_time", "_stop", "_start", "location"])
+             |> map(fn: (r) => ({_time: r._time, _value: r._value_price * r._value_total}))
+
+  it is like sql join and it return price \* total for every timestamp and return one table.
 
 **median:**
 We can use this function to get the median.
 
--     data
-          |> median()
+-     |> median()
+
+by default Output tables consist of a single row containing the calculated median.
+
+-     |> median(method: "exact_selector")
+
+  A selector method that returns the data point for which at least 50% of points are less than.
+
+-     |> median(method: "exact_mean")
+  Use the exact_mean method to return a single row per input table containing the average of the two values closest to the mathematical median of data in the table.
 
 **movingAverage:**
 For each row in a table, movingAverage() returns the average of the current value and previous values where n is the total number of values used to calculate the average.
 
 -     |> movingAverage(n: 3)
-- OR
+  this function calculate 3 previous value and find mean of this value. and set this mean instead of value.
 -     |> timedMovingAverage(every:2m,period:4m)
+  what this function do? every 2 minutes calculate mean of the 4 minutes ago and set instead of \_value. if period is 4 minutes influxdb convert all row between time into one row and calculate mean.
+
+**rate:** Use the derivative() function to calculate the rate of change between subsequent values or the aggregate.rate() function to calculate the average rate of change per window of time.
+
+-     data
+          |> derivative(unit: 1s)
+
+**Conditionally transform column values with map() and :**
+
+-     |> map(
+          fn: (r) => ({r with
+              level: if r._value >= 95.0000001 and r._value <= 100.0 then
+                  "critical"
+               else if r._value >= 85.0000001 and r._value <= 95.0 then
+                  "warning"
+               else if r._value >= 70.0000001 and r._value <= 85.0 then
+                  "high"
+               else
+                  "normal",
+               human_readable: if exists r._value then
+                   "${r._field} is ${string(v: r._value)}."
+               else
+                   "${r._field} has no value.",
+           }),
+      )
 
 ## data type
 
