@@ -4,6 +4,7 @@ import createInfluxDBCLient from './influx-client/influx-client';
 import { Iinflux } from './interface/Iinflux';
 import { FluxTableMetaData, Point } from '@influxdata/influxdb-client';
 import { Interface } from 'readline';
+import { generateBTC } from './util/btc-generator';
 const { InfluxDB, flux } = require('@influxdata/influxdb-client');
 
 @Injectable()
@@ -26,31 +27,44 @@ export class AppService {
     this.writeApi = writeApi;
   }
 
-  async writeInInflux() {
+  // async writeInInflux() {
+  //   try {
+  //     setInterval(() => {
+  //       const side = Math.random() * 10;
+  //       const amount = Math.floor(Math.random() * 100);
+  //       const price = Math.floor(Math.random() * 10000);
+  //       const total = amount * price;
+
+  //       this.writeApi.useDefaultTags({
+  //         location: 'server',
+  //         pairs: this.symbol,
+  //         side: side > 5 ? 'buy' : 'sell',
+  //       });
+  //       const point = new Point('trade')
+  //         .floatField('amount', amount)
+  //         .floatField('price', price)
+  //         .floatField('total', total)
+  //         .timestamp(new Date());
+
+  //       this.writeApi.writePoint(point);
+
+  //       console.log('FINISHED ');
+  //     }, 2000);
+
+  //     return 'data stored...';
+  //   } catch (error) {
+  //     console.log(error.message);
+  //     throw new BadRequestException(error.message);
+  //   }
+  // }
+
+  simulateBTC(): Point[] {
     try {
-      setInterval(() => {
-        const side = Math.random() * 10;
-        const amount = Math.floor(Math.random() * 100);
-        const price = Math.floor(Math.random() * 10000);
-        const total = amount * price;
+      const points = generateBTC(20000);
 
-        this.writeApi.useDefaultTags({
-          location: 'server',
-          pairs: this.symbol,
-          side: side > 5 ? 'buy' : 'sell',
-        });
-        const point = new Point('trade')
-          .floatField('amount', amount)
-          .floatField('price', price)
-          .floatField('total', total)
-          .timestamp(new Date());
+      this.writeApi.writePoints(points);
 
-        this.writeApi.writePoint(point);
-
-        console.log('FINISHED ');
-      }, 2000);
-
-      return 'data stored...';
+      return points;
     } catch (error) {
       console.log(error.message);
       throw new BadRequestException(error.message);
@@ -65,7 +79,7 @@ export class AppService {
       const start = '-1h';
       const end = 'now()';
       const field = 'price';
-      const measurement = 'trade';
+      const measurement = 'btcusd';
       const query = `
       from(bucket: "${bucket}") 
       |> range(start: ${start}, stop:${end})

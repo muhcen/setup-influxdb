@@ -64,49 +64,110 @@ code example:
 we write two api for read and write in influxdb.
 
 ```
-  async writeInInflux() {
-    try {
-      const side = Math.random() * 10;
-      const amount = Math.random() * 100;
-      const price = Math.random() * 10000;
-      const total = amount * price;
+import { Point } from '@influxdata/influxdb-client';
 
-      this.writeApi.useDefaultTags({
-        location: 'server',
-        pairs: 'BTCUSD',
-        side: side > 5 ? 'buy' : 'sell',
-      });
-      const point = new Point('trade')
-        .floatField('amount', amount)
-        .floatField('price', price)
-        .floatField('total', total)
-        .timestamp(new Date());
+export function generateBTC(startPrice) {
+  let currentPrice = startPrice;
+  let currentDate = new Date();
+  currentDate.setDate(currentDate.getDate() - 1);
 
-      this.writeApi.writePoint(point);
+  let records = [];
+  for (let index = 0; index < 24 * 60 * 60; index++) {
+    let priceChange = Math.floor(Math.random() * 100);
 
-      console.log('FINISHED ');
+    if (Math.random() > 0.508) priceChange *= -1;
+    currentPrice += priceChange;
 
-      return 'data stored...';
-    } catch (error) {
-      console.log(error.message);
-      throw new BadRequestException(error.message);
-    }
+    currentDate.setSeconds(currentDate.getSeconds() + 1);
+
+    const point = new Point('btcusd')
+      .tag('location', 'server')
+      .tag('pairs', 'BTCUSD')
+      .floatField('price', currentPrice)
+      .timestamp(new Date(currentDate));
+
+    records.push(point);
   }
+
+  return records;
+}
+
 ```
+
+with this api we generate 24 _ 60 _ 60 random records for btcusd price.
 
 ```
   async readFromInflux() {
     try {
-      const query = flux`from(bucket: "${this.configService.get<string>(
+      const bucket = this.configService.get<string>(
         'DOCKER_INFLUXDB_INIT_BUCKET',
-      )}")
-      |> range(start: -1d)
-      |> filter(fn: (r) => r["_measurement"] == "trade" and r["_field"] == "price" and r["side"] == "buy")
-      |> aggregateWindow(every: 1m, fn: max)`;
+      );
+      const start = '-1h';
+      const end = 'now()';
+      const field = 'price';
+      const measurement = 'btcusd';
+      const query = `
+      from(bucket: "${bucket}")
+      |> range(start: ${start}, stop:${end})
+      |> filter(fn: (r) => r["_measurement"] == "${measurement}" and r["pairs"] == "${this.symbol}" and r["_field"] == "${field}")
+      |> aggregateWindow(every: ${this.interval}, fn: first)
+      |> fill(usePrevious: true)
+      |> yield(name:"open")
 
-      const data = await this.queryApi.collectRows(query);
+      from(bucket: "${bucket}")
+      |> range(start: ${start}, stop:${end})
+      |> filter(fn: (r) => r["_measurement"] == "${measurement}" and r["pairs"] == "${this.symbol}" and r["_field"] == "${field}")
+      |> aggregateWindow(every: ${this.interval}, fn: max)
+      |> fill(usePrevious: true)
+      |> yield(name:"high")
 
-      return data;
+      from(bucket: "${bucket}")
+      |> range(start: ${start}, stop:${end})
+      |> filter(fn: (r) => r["_measurement"] == "${measurement}" and r["pairs"] == "${this.symbol}" and r["_field"] == "${field}")
+      |> aggregateWindow(every: ${this.interval}, fn: min)
+      |> fill(usePrevious: true)
+      |> yield(name:"low")
+
+      from(bucket: "${bucket}")
+      |> range(start: ${start}, stop:${end})
+      |> filter(fn: (r) => r["_measurement"] == "${measurement}" and r["pairs"] == "${this.symbol}" and r["_field"] == "${field}")
+      |> aggregateWindow(every: ${this.interval}, fn: last)
+      |> fill(usePrevious: true)
+      |> yield(name:"close")
+
+      from(bucket: "${bucket}")
+      |> range(start: ${start}, stop:${end})
+      |> filter(fn: (r) => r["_measurement"] == "${measurement}" and r["pairs"] == "${this.symbol}" and r["_field"] == "${field}")
+      |> aggregateWindow(every: ${this.interval}, fn: sum)
+      |> fill(usePrevious: true)
+      |> yield(name:"volume")
+      `;
+
+      let rowsCached = {};
+      let rows = [];
+
+      for await (const { values, tableMeta } of this.queryApi.iterateRows(
+        query,
+      )) {
+        const o = tableMeta.toObject(values);
+        if (!rowsCached[o._time]) rowsCached[o._time] = [];
+        rowsCached[o._time].push(o);
+      }
+
+      Object.values(rowsCached).forEach((item: any) => {
+        if (item.length) {
+          const row = {};
+
+          row['time'] = item[0]._time;
+          row['pair'] = item[0].pair;
+
+          item.forEach((item) => (row[item.result] = item._value));
+
+          rows.push(row);
+        }
+      });
+
+      return rows;
     } catch (error) {
       console.log(error.message);
       throw new BadRequestException(error.message);
@@ -114,7 +175,7 @@ we write two api for read and write in influxdb.
   }
 ```
 
-.
+with this api we calculate open, close, high, low and volume for every 5 minutes candle.
 
 .
 

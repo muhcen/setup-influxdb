@@ -5,11 +5,15 @@ import { AppService } from './app.service';
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
-  @Post('write-in-Influx')
-  writeInInflux() {
-    return this.appService.writeInInflux();
-  }
+  // @Post('write-in-Influx')
+  // writeInInflux() {
+  //   return this.appService.writeInInflux();
+  // }
 
+  @Post('simulate-btc-data')
+  simulate() {
+    return this.appService.simulateBTC();
+  }
   @Get('read-from-Influx')
   readFromInflux() {
     return this.appService.readFromInflux();
